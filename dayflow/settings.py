@@ -4,7 +4,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "django-insecure-dayflow-change-in-production-xyz123abc"
 
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
@@ -68,3 +68,6 @@ STATICFILES_DIRS = [BASE_DIR / "planner" / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
+
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
