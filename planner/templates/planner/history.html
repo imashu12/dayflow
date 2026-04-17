@@ -1,0 +1,137 @@
+{% extends "planner/base.html" %}
+
+{% block title %}History & Stats — DayFlow{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1 style="font-size:1.75rem;font-weight:800;margin:0;">📊 History</h1>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">Your productivity over time</p>
+  </div>
+  {% if streak > 0 %}
+  <div style="display:flex;align-items:center;gap:8px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:12px;padding:0.6rem 1rem;">
+    <span style="font-size:1.25rem;">🔥</span>
+    <div>
+      <div style="font-size:0.75rem;color:var(--amber);font-family:'Syne',sans-serif;font-weight:600;">CURRENT STREAK</div>
+      <div style="font-size:1.25rem;font-weight:800;font-family:'Syne',sans-serif;color:var(--text-primary);">{{ streak }} days</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 7-day chart -->
+<div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+  <h2 style="font-size:0.9rem;font-weight:700;margin:0 0 1.25rem;color:var(--text-secondary);font-family:'Syne',sans-serif;letter-spacing:0.05em;text-transform:uppercase;">
+    Last 7 Days
+  </h2>
+  <div style="display:flex;align-items:flex-end;gap:10px;height:100px;" id="bar-chart">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+
+<!-- Log table -->
+<div class="card" style="overflow:hidden;">
+  <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+    <h2 style="font-size:0.9rem;font-weight:700;margin:0;color:var(--text-secondary);font-family:'Syne',sans-serif;letter-spacing:0.05em;text-transform:uppercase;">Daily Logs</h2>
+  </div>
+  {% if logs %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="font-size:0.75rem;color:var(--text-muted);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.05em;">
+          <th style="padding:0.75rem 1.5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">Date</th>
+          <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;border-bottom:1px solid var(--border);">Tasks</th>
+          <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;border-bottom:1px solid var(--border);">Completed</th>
+          <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;border-bottom:1px solid var(--border);">Rate</th>
+          <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;border-bottom:1px solid var(--border);">Score</th>
+          <th style="padding:0.75rem 1.5rem;text-align:right;font-weight:600;border-bottom:1px solid var(--border);"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr style="border-bottom:1px solid var(--border);transition:background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+          <td style="padding:0.875rem 1.5rem;">
+            <div style="font-weight:600;font-size:0.9rem;">{{ log.date|date:"M j, Y" }}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">{{ log.date|date:"l" }}</div>
+          </td>
+          <td style="padding:0.875rem 1rem;text-align:center;font-size:0.9rem;">{{ log.tasks_total }}</td>
+          <td style="padding:0.875rem 1rem;text-align:center;font-size:0.9rem;color:var(--green);">{{ log.tasks_completed }}</td>
+          <td style="padding:0.875rem 1rem;text-align:center;">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:center;">
+              <div class="progress-bar" style="width:60px;">
+                <div class="progress-fill" style="width:{{ log.completion_rate }}%;"></div>
+              </div>
+              <span style="font-size:0.8rem;min-width:32px;">{{ log.completion_rate }}%</span>
+            </div>
+          </td>
+          <td style="padding:0.875rem 1rem;text-align:center;">
+            <span style="
+              font-size:0.8rem;font-weight:700;font-family:'Syne',sans-serif;
+              padding:2px 10px;border-radius:20px;
+              {% if log.productivity_score >= 80 %}background:rgba(74,222,128,0.12);color:var(--green);
+              {% elif log.productivity_score >= 60 %}background:rgba(124,106,247,0.12);color:var(--accent);
+              {% elif log.productivity_score >= 40 %}background:rgba(251,191,36,0.12);color:var(--amber);
+              {% else %}background:rgba(90,90,120,0.1);color:var(--text-muted);{% endif %}
+            ">{{ log.productivity_score|floatformat:0 }}</span>
+          </td>
+          <td style="padding:0.875rem 1.5rem;text-align:right;">
+            <a href="{% url 'dashboard' %}?date={{ log.date|date:'Y-m-d' }}" style="font-size:0.78rem;color:var(--accent);text-decoration:none;font-weight:600;">View →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:center;">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}" class="btn-ghost">‹ Prev</a>
+    {% endif %}
+    <span style="padding:0.5rem 1rem;font-size:0.85rem;color:var(--text-muted);">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="btn-ghost">Next ›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="text-align:center;padding:4rem 2rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
+    <p style="font-family:'Syne',sans-serif;font-weight:700;">No history yet</p>
+    <p style="font-size:0.85rem;color:var(--text-muted);">Complete some tasks to see your stats here</p>
+    <a href="{% url 'dashboard' %}" class="btn-primary" style="display:inline-flex;margin-top:1rem;text-decoration:none;">Go to Today</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const weekData = {{ week_data|safe }};
+  const chart = document.getElementById('bar-chart');
+  if (chart && weekData.length) {
+    const max = Math.max(...weekData.map(d => d.score), 1);
+    weekData.forEach(d => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;';
+      const barWrap = document.createElement('div');
+      barWrap.style.cssText = 'width:100%;flex:1;display:flex;align-items:flex-end;';
+      const bar = document.createElement('div');
+      const pct = (d.score / max) * 100;
+      bar.style.cssText = `
+        width:100%;border-radius:6px 6px 0 0;min-height:4px;
+        background:${d.score >= 80 ? 'var(--green)' : d.score >= 60 ? 'var(--accent)' : d.score >= 40 ? 'var(--amber)' : 'var(--border-light)'};
+        height:${pct}%;transition:height 0.6s cubic-bezier(0.4,0,0.2,1);
+      `;
+      bar.title = `${d.date}: ${d.score.toFixed(0)}`;
+      barWrap.appendChild(bar);
+      const label = document.createElement('span');
+      label.style.cssText = 'font-size:0.68rem;color:var(--text-muted);font-family:"Syne",sans-serif;';
+      label.textContent = d.date;
+      wrap.appendChild(barWrap);
+      wrap.appendChild(label);
+      chart.appendChild(wrap);
+    });
+  }
+</script>
+{% endblock %}

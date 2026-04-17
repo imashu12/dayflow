@@ -1,0 +1,162 @@
+{% extends "planner/base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit Task{% else %}New Task{% endif %} — DayFlow{% endblock %}
+
+{% block content %}
+<div style="max-width:600px;margin:0 auto;">
+
+  <!-- Back nav -->
+  <a href="{% url 'dashboard' %}" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);text-decoration:none;font-size:0.85rem;margin-bottom:1.5rem;transition:color 0.15s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">
+    ← Back to Dashboard
+  </a>
+
+  <div class="card" style="padding:2rem;">
+    <!-- Header -->
+    <div style="margin-bottom:2rem;">
+      <h1 style="font-size:1.5rem;font-weight:800;margin:0 0 6px;">
+        {% if form.instance.pk %}✏ Edit Task{% else %}＋ New Task{% endif %}
+      </h1>
+      <p style="font-size:0.875rem;color:var(--text-muted);margin:0;">
+        {% if form.instance.pk %}Update your task details below.{% else %}Plan your next task with details.{% endif %}
+      </p>
+    </div>
+
+    <form method="POST" novalidate>
+      {% csrf_token %}
+
+      <!-- Non-field errors -->
+      {% if form.non_field_errors %}
+      <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.25rem;font-size:0.875rem;color:var(--red);">
+        {{ form.non_field_errors }}
+      </div>
+      {% endif %}
+
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+        <!-- Title -->
+        <div>
+          <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+            Task Title *
+          </label>
+          {{ form.title }}
+          {% if form.title.errors %}
+          <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.title.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+            Description
+          </label>
+          {{ form.description }}
+        </div>
+
+        <!-- Date + Priority row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              Date *
+            </label>
+            {{ form.date }}
+            {% if form.date.errors %}
+            <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.date.errors.0 }}</p>
+            {% endif %}
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              Priority
+            </label>
+            {{ form.priority }}
+          </div>
+        </div>
+
+        <!-- Time row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              Start Time
+            </label>
+            {{ form.start_time }}
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              End Time
+            </label>
+            {{ form.end_time }}
+            {% if form.end_time.errors %}
+            <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.end_time.errors.0 }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Category + Status row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              Category
+            </label>
+            {{ form.category }}
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
+              Status
+            </label>
+            {{ form.status }}
+          </div>
+        </div>
+
+        <!-- Duration preview -->
+        <div id="duration-preview" style="background:var(--bg-hover);border-radius:10px;padding:0.75rem 1rem;font-size:0.85rem;color:var(--text-secondary);display:none;">
+          ⏱ Duration: <span id="duration-text" style="font-weight:600;color:var(--text-primary);"></span>
+        </div>
+
+        <!-- Submit -->
+        <div style="display:flex;gap:10px;padding-top:0.5rem;">
+          <button type="submit" class="btn-primary" style="flex:1;justify-content:center;padding:0.75rem;">
+            {% if form.instance.pk %}Save Changes{% else %}Add Task 🎯{% endif %}
+          </button>
+          <a href="{% url 'dashboard' %}" class="btn-ghost" style="text-decoration:none;">Cancel</a>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live duration preview
+  const startInput = document.querySelector('input[name="start_time"]');
+  const endInput = document.querySelector('input[name="end_time"]');
+
+  function updateDuration() {
+    const start = startInput.value;
+    const end = endInput.value;
+    const preview = document.getElementById('duration-preview');
+    const text = document.getElementById('duration-text');
+    if (start && end) {
+      const [sh, sm] = start.split(':').map(Number);
+      const [eh, em] = end.split(':').map(Number);
+      const totalMins = (eh * 60 + em) - (sh * 60 + sm);
+      if (totalMins > 0) {
+        const h = Math.floor(totalMins / 60);
+        const m = totalMins % 60;
+        text.textContent = h > 0 ? `${h}h ${m}m` : `${m} minutes`;
+        preview.style.display = 'block';
+      } else {
+        preview.style.display = 'none';
+      }
+    } else {
+      preview.style.display = 'none';
+    }
+  }
+
+  if (startInput && endInput) {
+    startInput.addEventListener('change', updateDuration);
+    endInput.addEventListener('change', updateDuration);
+    updateDuration();
+  }
+</script>
+{% endblock %}
