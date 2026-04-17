@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ⚡ DayFlow — Production-Ready Daily Planner
 
 A startup-level daily planner built with Django. Clean dark UI, timeline view, productivity scoring, streak system, and smart free-slot detection.
@@ -162,3 +163,6 @@ python manage.py createsuperuser
 - **Drag-and-drop reorder** — use SortableJS on the task list
 - **Calendar month view** — add a `/calendar/` view using existing DailyLog data
 - **Export to CSV** — add a simple view that streams Task queryset as CSV
+=======
+# dayflow
+>>>>>>> 73df2df9685056c73eed9806bde1e8613170e255
