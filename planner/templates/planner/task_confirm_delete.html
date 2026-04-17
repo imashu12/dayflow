@@ -1,32 +1,115 @@
 {% extends "planner/base.html" %}
 
-{% block title %}Delete Task — DayFlow{% endblock %}
+{% block title %}Delete task — DayFlow{% endblock %}
+{% block breadcrumb %}Delete task{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'dashboard' %}?date={{ object.date|date:'Y-m-d' }}" class="btn btn-ghost">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M10 12L6 8l4-4"/></svg>
+    Back
+  </a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .delete-wrap {
+    max-width: 460px;
+    margin: 60px auto 0;
+  }
+  .delete-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-xl);
+    overflow: hidden;
+  }
+  .delete-body {
+    padding: 36px 32px 28px;
+    text-align: center;
+  }
+  .delete-icon-ring {
+    width: 52px; height: 52px;
+    background: var(--c-high-dim);
+    border: 1px solid rgba(229,83,61,0.2);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .delete-icon-ring svg { width: 22px; height: 22px; stroke: var(--c-high); stroke-width: 1.5; fill: none; }
+  .delete-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem; line-height: 1.1;
+    margin-bottom: 8px;
+    color: var(--ink-0);
+  }
+  .delete-sub {
+    font-size: 0.82rem; color: var(--ink-2);
+    margin-bottom: 20px; line-height: 1.5;
+  }
+  .task-preview {
+    background: var(--surface-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-md);
+    padding: 12px 16px;
+    font-size: 0.855rem;
+    font-weight: 500;
+    color: var(--ink-0);
+    margin-bottom: 8px;
+    text-align: left;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .delete-footer {
+    padding: 16px 32px 24px;
+    display: flex; gap: 10px; justify-content: center;
+  }
+  .btn-danger {
+    background: var(--c-high);
+    color: white;
+    height: 36px; padding: 0 18px;
+    border-radius: var(--r-sm);
+    font-size: 0.82rem; font-weight: 500;
+    cursor: pointer; border: none;
+    font-family: 'Geist', sans-serif;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: opacity 0.12s, transform 0.1s;
+  }
+  .btn-danger:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-danger svg { width: 13px; height: 13px; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div style="max-width:480px;margin:4rem auto;">
-  <div class="card" style="padding:2.5rem;text-align:center;">
-    <div style="font-size:3.5rem;margin-bottom:1.25rem;">🗑</div>
-    <h1 style="font-size:1.4rem;font-weight:800;margin:0 0 0.5rem;">Delete this task?</h1>
-    <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:0.5rem;">
-      You're about to delete:
-    </p>
-    <p style="font-size:1rem;font-weight:600;color:var(--text-primary);background:var(--bg-hover);border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.5rem;">
-      "{{ object.title }}"
-    </p>
-    <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:2rem;">This action cannot be undone.</p>
-    <form method="POST" style="display:flex;gap:10px;justify-content:center;">
-      {% csrf_token %}
-      <button type="submit" style="
-        background:var(--red);color:white;border:none;border-radius:10px;
-        padding:0.6rem 1.5rem;font-family:'Syne',sans-serif;font-weight:600;
-        font-size:0.875rem;cursor:pointer;transition:opacity 0.15s;
-      " onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
-        Yes, Delete
-      </button>
-      <a href="{% url 'dashboard' %}?date={{ object.date|date:'Y-m-d' }}" class="btn-ghost" style="text-decoration:none;">
-        Cancel
-      </a>
-    </form>
+<div class="delete-wrap">
+  <div class="delete-card">
+    <div class="delete-body">
+      <div class="delete-icon-ring">
+        <svg viewBox="0 0 16 16"><polyline points="2,4 14,4"/><path d="M5 4V2h6v2M6 8v5M10 8v5M3 4l1 10h8l1-10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h1 class="delete-title">Delete this task?</h1>
+      <p class="delete-sub">This action is permanent and cannot be undone.</p>
+
+      <div class="task-preview">
+        <span class="p-dot p-dot-{{ object.priority }}"></span>
+        <span>{{ object.title }}</span>
+        {% if object.category %}<span style="margin-left:auto;font-size:0.85rem;">{{ object.category.icon }}</span>{% endif %}
+      </div>
+
+      {% if object.start_time %}
+      <div style="font-size:0.72rem;color:var(--ink-2);font-family:'Geist Mono',monospace;margin-bottom:4px;">
+        {{ object.date|date:"M j, Y" }} · {{ object.start_time|time:"H:i" }}{% if object.end_time %}–{{ object.end_time|time:"H:i" }}{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="delete-footer">
+      <a href="{% url 'dashboard' %}?date={{ object.date|date:'Y-m-d' }}" class="btn btn-ghost">Keep task</a>
+      <form method="POST" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn-danger">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 14,4"/><path d="M5 4V2h6v2M6 8v5M10 8v5M3 4l1 10h8l1-10"/></svg>
+          Delete permanently
+        </button>
+      </form>
+    </div>
   </div>
 </div>
 {% endblock %}

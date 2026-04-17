@@ -2,359 +2,676 @@
 {% load planner_tags %}
 
 {% block title %}DayFlow — {{ selected_date|date:"M j" }}{% endblock %}
+{% block breadcrumb %}{{ selected_date|date:"M j, Y" }}{% endblock %}
+
+{% block topbar_actions %}
+  <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-ghost btn-icon" title="Previous day">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12L6 8l4-4"/></svg>
+  </a>
+  {% if selected_date != today %}
+  <a href="?" class="btn btn-ghost" style="font-size:0.78rem;">Today</a>
+  {% endif %}
+  <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-ghost btn-icon" title="Next day">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+  </a>
+  <div style="width:1px;height:20px;background:var(--line-2);margin:0 4px;"></div>
+  <button onclick="openModal('quick-add-modal')" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+    New task
+  </button>
+{% endblock %}
 
 {% block extra_head %}
 <style>
-  .stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.25rem;
-    transition: border-color 0.2s, transform 0.15s;
+  /* ── Dashboard-specific ──────────────────────────────────────── */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+    align-items: start;
   }
-  .stat-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
-  .stat-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    font-family: 'Syne', sans-serif;
-    letter-spacing: 0.08em;
+
+  /* Date headline */
+  .date-headline {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .date-serif {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.4rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink-0);
+  }
+  .date-weekday {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--ink-2);
     text-transform: uppercase;
-    margin-bottom: 0.6rem;
-    display: block;
+    letter-spacing: 0.08em;
   }
-  .task-row {
-    display: flex;
-    align-items: flex-start;
+  .streak-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(212,129,58,0.1);
+    border: 1px solid rgba(212,129,58,0.2);
+    border-radius: 99px;
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--c-med);
+    letter-spacing: 0.02em;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
-    padding: 0.9rem 1rem 0.9rem 1.1rem;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+    margin-bottom: 20px;
+  }
+
+  /* Timeline */
+  .timeline-wrap {
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .timeline-body {
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+    position: relative;
+  }
+  .tl-row {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    min-height: 56px;
+    border-top: 1px solid var(--line-1);
+  }
+  .tl-row:first-child { border-top: none; }
+  .tl-row.tl-now { background: var(--accent-dim); }
+  .tl-time {
+    padding: 10px 10px 0 0;
+    text-align: right;
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.67rem;
+    color: var(--ink-3);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .tl-events {
+    padding: 6px 12px 6px 8px;
+    display: flex; flex-direction: column; gap: 4px;
+    border-left: 1px solid var(--line-1);
+    position: relative;
+  }
+  .tl-event {
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-left: 2px solid;
+    background: var(--surface-3);
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.12s;
+    cursor: default;
+  }
+  .tl-event:hover { background: var(--surface-4); }
+  .tl-event.ev-done {
+    opacity: 0.38;
+  }
+  .tl-event.ev-done .tl-event-name { text-decoration: line-through; }
+  .tl-event-name { flex: 1; color: var(--ink-0); min-width: 0; }
+  .tl-event-time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink-2);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Time needle */
+  .tl-needle {
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: var(--accent);
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+  }
+  .tl-needle::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: -4px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Task list */
+  .tasks-panel {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .filter-row {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .filter-pill {
+    padding: 4px 11px;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--line-2);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .filter-pill:hover { background: var(--surface-4); color: var(--ink-1); }
+  .filter-pill.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Task item */
+  .task-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-md);
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
     position: relative;
     overflow: hidden;
   }
-  .task-row:hover {
-    border-color: var(--border-light);
-    transform: translateX(2px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  .task-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
   }
-  .task-row.done { opacity: 0.5; }
-  .task-row.done .task-name { text-decoration: line-through; color: var(--text-muted); }
-  .check-btn {
-    width: 22px; height: 22px;
-    border-radius: 7px;
-    border: 2px solid var(--border-light);
+  .task-item.p-high::before  { background: var(--c-high); }
+  .task-item.p-medium::before { background: var(--c-med); }
+  .task-item.p-low::before   { background: var(--c-low); }
+
+  .task-item:hover {
+    border-color: var(--line-3);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+  .task-item.is-done {
+    opacity: 0.45;
+  }
+  .task-item.is-done .task-name { text-decoration: line-through; color: var(--ink-2); }
+
+  .check-circle {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line-3);
     background: transparent;
+    flex-shrink: 0;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    color: white;
-    font-size: 0.75rem;
-    flex-shrink: 0;
-    margin-top: 1px;
     transition: all 0.15s;
+    margin-top: 1px;
   }
-  .check-btn.checked { background: var(--green); border-color: var(--green); }
-  .check-btn:hover:not(.checked) { border-color: var(--accent); }
-  .tl-slot {
-    display: flex;
-    min-height: 52px;
-    border-top: 1px solid var(--border);
-    position: relative;
+  .check-circle:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .check-circle.done { background: var(--c-done); border-color: var(--c-done); }
+  .check-circle svg { width: 10px; height: 10px; stroke: white; stroke-width: 2.5; fill: none; opacity: 0; transition: opacity 0.15s; }
+  .check-circle.done svg { opacity: 1; }
+
+  .task-content { flex: 1; min-width: 0; }
+  .task-name {
+    font-size: 0.855rem;
+    font-weight: 500;
+    color: var(--ink-0);
+    line-height: 1.4;
+    margin-bottom: 5px;
+    word-break: break-word;
   }
-  .tl-slot:last-child { border-bottom: 1px solid var(--border); }
-  .tl-label {
-    width: 52px; flex-shrink: 0;
-    padding-top: 7px;
+  .task-meta {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .task-time {
+    font-family: 'Geist Mono', monospace;
     font-size: 0.67rem;
-    color: var(--text-muted);
-    font-family: 'Syne', sans-serif;
-    text-align: right;
-    padding-right: 10px;
+    color: var(--ink-2);
   }
-  .tl-content { flex: 1; padding: 4px 8px; display: flex; flex-direction: column; gap: 3px; }
-  .tl-block {
-    border-radius: 7px; padding: 5px 10px;
-    font-size: 0.78rem; border-left: 3px solid;
-    background: var(--bg-hover);
+  .task-desc {
+    font-size: 0.75rem;
+    color: var(--ink-2);
+    margin-top: 4px;
+    line-height: 1.45;
   }
-  .tl-block.done-block { opacity: 0.45; }
-  .free-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    background: rgba(74,222,128,0.07);
-    border: 1px dashed rgba(74,222,128,0.3);
-    border-radius: 8px; padding: 4px 10px;
-    font-size: 0.73rem; color: var(--green);
-    cursor: pointer; transition: background 0.15s;
-    white-space: nowrap;
+  .task-actions {
+    display: flex; gap: 4px; opacity: 0;
+    transition: opacity 0.12s;
+    flex-shrink: 0;
   }
-  .free-chip:hover { background: rgba(74,222,128,0.14); }
-  .section-head {
-    font-size: 0.68rem; font-family: 'Syne',sans-serif; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
-    display: flex; align-items: center; gap: 8px; margin: 4px 0 6px;
+  .task-item:hover .task-actions { opacity: 1; }
+  .task-action-btn {
+    width: 26px; height: 26px;
+    background: none; border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    cursor: pointer; color: var(--ink-2);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+    text-decoration: none;
+    font-size: 0; /* hide text if any */
   }
-  .section-head::after { content:''; flex:1; height:1px; background:var(--border); }
-  .filter-chip {
-    padding: 4px 12px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; font-family: 'Syne',sans-serif;
-    background: transparent; color: var(--text-secondary);
-    border: 1px solid var(--border); cursor: pointer;
-    transition: all 0.15s; white-space: nowrap;
+  .task-action-btn:hover { background: var(--surface-4); color: var(--ink-0); }
+  .task-action-btn.del:hover { border-color: var(--c-high); color: var(--c-high); background: var(--c-high-dim); }
+  .task-action-btn svg { width: 12px; height: 12px; }
+
+  .task-overdue {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--c-high);
+    font-family: 'Geist Mono', monospace;
+    letter-spacing: 0.04em;
   }
-  .filter-chip.active-chip { background: var(--accent); color: white; border-color: var(--accent); }
-  .prio-pill {
-    text-align: center; padding: 6px; border-radius: 8px;
-    border: 1px solid var(--border); font-size: 0.73rem; font-weight: 600;
-    font-family: 'Syne',sans-serif; transition: all 0.15s; color: var(--text-secondary);
+
+  /* Section heading in task list */
+  .list-section {
+    display: flex; align-items: center; gap: 10px;
+    margin: 6px 0 6px;
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .list-section::after {
+    content: ''; flex: 1;
+    height: 1px; background: var(--line-1);
+  }
+
+  /* Free slots */
+  .free-slot-btn {
+    background: none;
+    border: 1px dashed var(--line-3);
+    border-radius: var(--r-sm);
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    color: var(--ink-2);
     cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.12s;
+    font-family: 'Geist Mono', monospace;
+    width: 100%;
+    text-align: left;
   }
-  @keyframes fadeUp {
-    from { opacity:0; transform: translateY(6px); }
-    to   { opacity:1; transform: translateY(0); }
+  .free-slot-btn:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-dim); }
+  .free-slot-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--c-low);
+    flex-shrink: 0;
   }
-  .task-row { animation: fadeUp 0.18s ease both; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+  }
+  .empty-icon {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.5rem;
+    line-height: 1;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+  .empty-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ink-1);
+    margin-bottom: 4px;
+  }
+  .empty-sub {
+    font-size: 0.78rem;
+    color: var(--ink-2);
+    margin-bottom: 16px;
+  }
+
+  /* Quick add form inside modal */
+  .prio-selector {
+    display: flex; gap: 6px;
+  }
+  .prio-opt { flex: 1; }
+  .prio-opt input[type=radio] { display: none; }
+  .prio-opt label {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 8px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-2);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-1);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .prio-opt input:checked + label { border-color: var(--sel-color,var(--accent)); background: var(--sel-bg,var(--accent-dim)); color: var(--sel-color,var(--accent-text)); }
+  .prio-opt label:hover { background: var(--surface-4); }
+
+  @media (max-width: 1000px) {
+    .dash-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+    .timeline-body { max-height: 320px; }
+  }
+  @media (max-width: 600px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .date-serif { font-size: 1.8rem; }
+  }
+
+  /* Score ring */
+  .score-ring-wrap { position: relative; width: 54px; height: 54px; flex-shrink: 0; }
+  .score-ring-wrap svg { transform: rotate(-90deg); }
+  .score-ring-val {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  /* Animate task items in */
+  @keyframes slideUp {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  #task-list .task-item {
+    animation: slideUp 0.2s ease both;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- Top bar -->
-<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.75rem;flex-wrap:wrap;">
-  <div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
-      <p style="font-size:0.7rem;color:var(--text-muted);font-family:'Syne',sans-serif;letter-spacing:0.1em;text-transform:uppercase;margin:0;">
-        {% if selected_date == today %}Today{% else %}{{ selected_date|date:"l" }}{% endif %}
-      </p>
-      {% if streak > 0 %}
-      <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:20px;padding:2px 9px;font-size:0.68rem;color:var(--amber);font-family:'Syne',sans-serif;font-weight:700;">🔥 {{ streak }}-day streak</span>
-      {% endif %}
-    </div>
-    <h1 style="font-size:1.85rem;font-weight:800;margin:0;line-height:1.1;letter-spacing:-0.02em;">{{ selected_date|date:"F j, Y" }}</h1>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:3px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:3px;">
-      <a href="?date={{ prev_date|date:'Y-m-d' }}" style="padding:4px 10px;border-radius:7px;color:var(--text-secondary);text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">‹</a>
-      {% if selected_date != today %}<a href="?" style="padding:3px 10px;border-radius:7px;color:var(--accent);text-decoration:none;font-size:0.73rem;font-family:'Syne',sans-serif;font-weight:700;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">Today</a>{% endif %}
-      <a href="?date={{ next_date|date:'Y-m-d' }}" style="padding:4px 10px;border-radius:7px;color:var(--text-secondary);text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">›</a>
-    </div>
-    <button onclick="openModal('quick-add-modal')" class="btn-primary"><span>＋</span> Quick Add</button>
-    <a href="{% url 'task_create' %}?date={{ selected_date|date:'Y-m-d' }}" class="btn-ghost" style="text-decoration:none;">Full Form</a>
-  </div>
+<!-- Date headline -->
+<div class="date-headline">
+  <h1 class="date-serif">{{ selected_date|date:"F j" }}</h1>
+  <span class="date-weekday">{{ selected_date|date:"l, Y" }}</span>
+  {% if streak > 0 %}
+  <span class="streak-badge">
+    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1C5.5 4 3 5.5 3 8.5a5 5 0 0 0 10 0C13 5.5 10.5 4 8 1z"/></svg>
+    {{ streak }}-day streak
+  </span>
+  {% endif %}
 </div>
 
 <!-- Stats row -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:1rem;margin-bottom:2rem;">
+<div class="stats-row stagger">
 
-  <div class="stat-card">
-    <span class="stat-label">Progress</span>
-    <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:0.55rem;">
-      <span style="font-size:1.7rem;font-weight:800;font-family:'Syne',sans-serif;" id="dash-pct">{{ progress }}%</span>
-      <span style="font-size:0.78rem;color:var(--text-secondary);" id="dash-count">{{ completed }}/{{ total }}</span>
+  <!-- Progress -->
+  <div class="stat-block">
+    <div class="stat-eyebrow">Progress</div>
+    <div style="display:flex;align-items:baseline;gap:7px;">
+      <span class="stat-value" id="pct-val">{{ progress }}<span style="font-size:1.1rem;font-weight:500;color:var(--ink-2);">%</span></span>
+      <span class="stat-sub" id="cnt-val">{{ completed }}/{{ total }} tasks</span>
     </div>
-    <div class="progress-bar"><div class="progress-fill" id="dash-bar" style="width:{{ progress }}%;"></div></div>
+    <div class="progress-track" style="margin-top:12px;">
+      <div class="progress-fill" id="prog-fill" style="width:{{ progress }}%;"></div>
+    </div>
   </div>
 
-  <div class="stat-card">
-    <span class="stat-label">Score</span>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="position:relative;width:50px;height:50px;flex-shrink:0;">
-        <svg viewBox="0 0 36 36" style="transform:rotate(-90deg);width:50px;height:50px;">
-          <circle cx="18" cy="18" r="14" fill="none" stroke="var(--border)" stroke-width="3.2"/>
-          <circle cx="18" cy="18" r="14" fill="none" stroke="var(--accent)" stroke-width="3.2"
-            stroke-dasharray="{{ log.productivity_score|floatformat:1 }} 100" stroke-linecap="round"/>
+  <!-- Score -->
+  <div class="stat-block">
+    <div class="stat-eyebrow">Score</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="score-ring-wrap">
+        <svg width="54" height="54" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--line-2)" stroke-width="2.5"/>
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--accent)" stroke-width="2.5"
+                  stroke-dasharray="{{ log.productivity_score|floatformat:1 }} 100"
+                  stroke-linecap="round" style="transition:stroke-dasharray 0.8s ease;"/>
         </svg>
-        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;font-family:'Syne',sans-serif;">{{ log.productivity_score|floatformat:0 }}</span>
+        <span class="score-ring-val">{{ log.productivity_score|floatformat:0 }}</span>
       </div>
       <div>
-        <div style="font-size:0.82rem;font-weight:600;">{% if log.productivity_score >= 80 %}Excellent 🌟{% elif log.productivity_score >= 60 %}Good 👍{% elif log.productivity_score >= 40 %}Fair ⚡{% else %}Let's Go 🌱{% endif %}</div>
-        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">productivity</div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--ink-0);">
+          {% if log.productivity_score >= 80 %}Excellent{% elif log.productivity_score >= 60 %}Good{% elif log.productivity_score >= 40 %}Fair{% else %}Getting started{% endif %}
+        </div>
+        <div style="font-size:0.72rem;color:var(--ink-2);margin-top:3px;">
+          {% if log.productivity_score >= 80 %}Keep it up 🌟{% elif log.productivity_score >= 60 %}Solid work{% elif log.productivity_score >= 40 %}Stay focused{% else %}Start your day{% endif %}
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="stat-card">
-    <span class="stat-label">Streak</span>
-    <div style="display:flex;align-items:baseline;gap:5px;">
-      <span style="font-size:1.7rem;font-weight:800;font-family:'Syne',sans-serif;{% if streak > 0 %}color:var(--amber);{% endif %}">{{ streak }}</span>
-      <span style="font-size:0.78rem;color:var(--text-secondary);">days</span>
+  <!-- Streak -->
+  <div class="stat-block">
+    <div class="stat-eyebrow">Streak</div>
+    <div style="display:flex;align-items:baseline;gap:6px;">
+      <span class="stat-value" style="{% if streak > 0 %}color:var(--c-med);{% endif %}">{{ streak }}</span>
+      <span class="stat-sub">days</span>
     </div>
-    <p style="font-size:0.72rem;color:var(--text-muted);margin:4px 0 0;">{% if streak == 0 %}Complete 50%+ tasks to start{% elif streak < 3 %}Nice start, keep rolling{% elif streak < 7 %}You're on fire 🔥{% else %}Legendary 🏆{% endif %}</p>
+    <div style="font-size:0.72rem;color:var(--ink-2);margin-top:6px;">
+      {% if streak == 0 %}Complete ≥50% to start{% elif streak < 3 %}Nice start — keep going{% elif streak < 7 %}On a roll 🔥{% else %}Legendary run 🏆{% endif %}
+    </div>
   </div>
 
-  <div class="stat-card">
-    <span class="stat-label">Free Slots</span>
+  <!-- Free time -->
+  <div class="stat-block">
+    <div class="stat-eyebrow">Open slots</div>
     {% if free_slots %}
-    <div style="display:flex;flex-direction:column;gap:5px;">
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
       {% for slot in free_slots %}
-      <button class="free-chip" onclick="prefillModal('{{ slot.start }}','{{ slot.end }}')">
-        ✦ {{ slot.start }}–{{ slot.end }} <span style="opacity:0.6;">{{ slot.minutes }}m</span>
+      <button class="free-slot-btn" onclick="prefillAndOpen('{{ slot.start }}','{{ slot.end }}')">
+        <span class="free-slot-dot"></span>
+        <span>{{ slot.start }}–{{ slot.end }}</span>
+        <span style="margin-left:auto;color:var(--ink-3);">{{ slot.minutes }}m</span>
       </button>
       {% endfor %}
     </div>
     {% else %}
-    <div style="font-size:0.8rem;color:var(--text-muted);">{% if total == 0 %}Add tasks to detect gaps{% else %}Day fully scheduled 💪{% endif %}</div>
+    <div style="font-size:0.78rem;color:var(--ink-2);margin-top:4px;">
+      {% if total == 0 %}Add tasks to detect gaps{% else %}Schedule fully packed{% endif %}
+    </div>
     {% endif %}
   </div>
 
 </div>
 
-<!-- Main two-col -->
-<div style="display:grid;grid-template-columns:1fr 355px;gap:1.5rem;align-items:start;">
+<!-- Main grid -->
+<div class="dash-grid">
 
-  <!-- Timeline -->
-  <div class="card" style="padding:0;overflow:hidden;">
-    <div style="padding:1rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-      <h2 style="font-size:0.875rem;font-weight:700;margin:0;font-family:'Syne',sans-serif;">📅 Timeline</h2>
-      <span style="font-size:0.72rem;color:var(--text-muted);">{{ selected_date|date:"D, M j" }}</span>
+  <!-- LEFT: Timeline -->
+  <div class="timeline-wrap">
+    <div class="card-header">
+      <span class="card-title">Timeline</span>
+      <span style="font-family:'Geist Mono',monospace;font-size:0.67rem;color:var(--ink-2);">{{ selected_date|date:"D d M" }}</span>
     </div>
-    <div style="position:relative;max-height:70vh;overflow-y:auto;" id="tl-scroll">
+    <div class="timeline-body" id="tl-body">
+      <div class="tl-needle" id="tl-needle"></div>
       {% for hour in hours %}
-      <div class="tl-slot" id="tl-{{ hour }}">
-        <div class="tl-label">
-          {% if hour == 12 %}12pm{% elif hour > 12 %}{{ hour|add:"-12" }}pm{% else %}{{ hour }}am{% endif %}
+      <div class="tl-row" id="tl-h{{ hour }}">
+        <div class="tl-time">
+          {% if hour == 12 %}12p{% elif hour > 12 %}{{ hour|add:"-12" }}p{% else %}{{ hour }}a{% endif %}
         </div>
-        <div class="tl-content">
+        <div class="tl-events">
           {% for task in tasks %}
             {% if task.start_time %}{% if task.start_time.hour == hour %}
-            <div class="tl-block {% if task.status == 'completed' %}done-block{% endif %}"
-                 style="border-left-color:{{ task.priority_color }};">
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-weight:600;color:var(--text-primary);{% if task.status == 'completed' %}text-decoration:line-through;color:var(--text-muted);{% endif %}flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ task.title }}</span>
-                {% if task.end_time %}<span style="font-size:0.67rem;color:var(--text-muted);white-space:nowrap;">{{ task.start_time|time:"H:i" }}–{{ task.end_time|time:"H:i" }}</span>{% endif %}
-              </div>
-              {% if task.category %}<div style="font-size:0.67rem;color:var(--text-muted);margin-top:1px;">{{ task.category.icon }} {{ task.category.name }}</div>{% endif %}
+            <div class="tl-event {% if task.status == 'completed' %}ev-done{% endif %}"
+                 style="border-left-color:{% if task.priority == 'high' %}var(--c-high){% elif task.priority == 'medium' %}var(--c-med){% else %}var(--c-low){% endif %};">
+              <span class="tl-event-name truncate">{{ task.title }}</span>
+              {% if task.end_time %}
+              <span class="tl-event-time">{{ task.start_time|time:"H:i" }}–{{ task.end_time|time:"H:i" }}</span>
+              {% endif %}
+              {% if task.category %}<span style="font-size:0.75rem;flex-shrink:0;">{{ task.category.icon }}</span>{% endif %}
             </div>
             {% endif %}{% endif %}
           {% endfor %}
         </div>
       </div>
       {% endfor %}
-      {% if selected_date == today %}
-      <div id="time-needle" style="position:absolute;left:52px;right:0;height:2px;background:var(--accent);z-index:5;pointer-events:none;display:none;">
-        <div style="position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);"></div>
-      </div>
-      {% endif %}
     </div>
   </div>
 
-  <!-- Task list -->
-  <div style="display:flex;flex-direction:column;gap:10px;">
-    <div style="display:flex;gap:5px;flex-wrap:wrap;">
-      <button class="filter-chip active-chip" data-f="all" onclick="filterTasks('all',this)">All <span style="opacity:0.7;font-size:0.65rem;">{{ total }}</span></button>
-      <button class="filter-chip" data-f="pending" onclick="filterTasks('pending',this)">Pending</button>
-      <button class="filter-chip" data-f="completed" onclick="filterTasks('completed',this)">Done ✓</button>
-      <button class="filter-chip" data-f="high" onclick="filterTasks('high',this)">🔴 Urgent</button>
+  <!-- RIGHT: Task panel -->
+  <div class="tasks-panel">
+
+    <!-- Filter pills -->
+    <div class="filter-row">
+      <button class="filter-pill active" data-f="all" onclick="applyFilter('all',this)">All <span id="f-count" style="opacity:0.65;font-size:0.65rem;">{{ total }}</span></button>
+      <button class="filter-pill" data-f="pending"   onclick="applyFilter('pending',this)">Pending</button>
+      <button class="filter-pill" data-f="completed" onclick="applyFilter('completed',this)">Done</button>
+      <button class="filter-pill" data-f="high"      onclick="applyFilter('high',this)">Urgent</button>
     </div>
 
-    <div id="task-list" style="display:flex;flex-direction:column;gap:7px;">
+    <!-- Task list -->
+    <div id="task-list">
       {% if tasks %}
 
-        {% with has_high=False %}
         {% for task in tasks %}{% if task.priority == 'high' %}
-          {% if forloop.first %}<div class="section-head">Urgent</div>{% endif %}
-          <div class="task-row {% if task.status == 'completed' %}done{% endif %}"
-               id="tr-{{ task.id }}" data-status="{{ task.status }}" data-priority="{{ task.priority }}"
+          {% if forloop.first %}<div class="list-section">Urgent</div>{% endif %}
+          <div class="task-item p-high {% if task.status == 'completed' %}is-done{% endif %}"
+               id="ti-{{ task.id }}" data-status="{{ task.status }}" data-priority="{{ task.priority }}"
                style="animation-delay:{{ forloop.counter0 }}0ms;">
-            <button class="check-btn {% if task.status == 'completed' %}checked{% endif %}" id="cb-{{ task.id }}" onclick="toggleTask({{ task.id }})">{% if task.status == 'completed' %}✓{% endif %}</button>
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:5px;">
-                <p class="task-name" style="font-size:0.875rem;font-weight:500;margin:0 0 3px;line-height:1.3;word-break:break-word;">{{ task.title }}</p>
-                <div style="display:flex;gap:3px;flex-shrink:0;">
-                  <a href="{% url 'task_edit' task.pk %}" style="font-size:0.65rem;color:var(--text-muted);text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid var(--border);white-space:nowrap;">edit</a>
-                  <a href="{% url 'task_delete' task.pk %}" style="font-size:0.65rem;color:var(--red);text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid rgba(248,113,113,0.2);white-space:nowrap;">del</a>
-                </div>
+            <button class="check-circle {% if task.status == 'completed' %}done{% endif %}" id="cc-{{ task.id }}" onclick="toggleTask({{ task.id }})" aria-label="Toggle task">
+              <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+            </button>
+            <div class="task-content">
+              <div class="task-name">{{ task.title }}</div>
+              <div class="task-meta">
+                {% if task.start_time %}
+                <span class="task-time">{{ task.start_time|time:"H:i" }}{% if task.end_time %}–{{ task.end_time|time:"H:i" }}{% endif %}</span>
+                {% endif %}
+                <span class="tag tag-high">high</span>
+                <span class="tag tag-{{ task.status }}">{{ task.get_status_display }}</span>
+                {% if task.category %}<span style="font-size:0.75rem;">{{ task.category.icon }}</span>{% endif %}
+                {% if task.is_overdue %}<span class="task-overdue">overdue</span>{% endif %}
               </div>
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                {% if task.start_time %}<span style="font-size:0.68rem;color:var(--text-muted);">⏰ {{ task.start_time|time:"H:i" }}{% if task.end_time %}–{{ task.end_time|time:"H:i" }}{% endif %}</span>{% endif %}
-                <span class="badge badge-{{ task.priority }}">{{ task.priority }}</span>
-                <span class="badge badge-{{ task.status }}">{{ task.get_status_display }}</span>
-                {% if task.category %}<span style="font-size:0.65rem;color:var(--text-muted);">{{ task.category.icon }}</span>{% endif %}
-                {% if task.is_overdue %}<span style="font-size:0.65rem;color:var(--red);font-weight:600;">⚠ overdue</span>{% endif %}
-              </div>
-              {% if task.description %}<p style="font-size:0.73rem;color:var(--text-muted);margin:4px 0 0;line-height:1.4;">{{ task.description|truncatechars:65 }}</p>{% endif %}
+              {% if task.description %}<p class="task-desc">{{ task.description|truncatechars:72 }}</p>{% endif %}
+            </div>
+            <div class="task-actions">
+              <a href="{% url 'task_edit' task.pk %}" class="task-action-btn" title="Edit">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3L11 2z"/></svg>
+              </a>
+              <a href="{% url 'task_delete' task.pk %}" class="task-action-btn del" title="Delete">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 14,4"/><path d="M5 4V2h6v2M6 8v5M10 8v5M3 4l1 10h8l1-10"/></svg>
+              </a>
             </div>
           </div>
         {% endif %}{% endfor %}
-        {% endwith %}
 
         {% for task in tasks %}{% if task.priority != 'high' %}
-          {% if forloop.first %}<div class="section-head" style="margin-top:4px;">Other Tasks</div>{% endif %}
-          <div class="task-row {% if task.status == 'completed' %}done{% endif %}"
-               id="tr-{{ task.id }}" data-status="{{ task.status }}" data-priority="{{ task.priority }}"
+          {% if forloop.first %}<div class="list-section">Other tasks</div>{% endif %}
+          <div class="task-item p-{{ task.priority }} {% if task.status == 'completed' %}is-done{% endif %}"
+               id="ti-{{ task.id }}" data-status="{{ task.status }}" data-priority="{{ task.priority }}"
                style="animation-delay:{{ forloop.counter0 }}0ms;">
-            <button class="check-btn {% if task.status == 'completed' %}checked{% endif %}" id="cb-{{ task.id }}" onclick="toggleTask({{ task.id }})">{% if task.status == 'completed' %}✓{% endif %}</button>
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:5px;">
-                <p class="task-name" style="font-size:0.875rem;font-weight:500;margin:0 0 3px;line-height:1.3;word-break:break-word;">{{ task.title }}</p>
-                <div style="display:flex;gap:3px;flex-shrink:0;">
-                  <a href="{% url 'task_edit' task.pk %}" style="font-size:0.65rem;color:var(--text-muted);text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid var(--border);white-space:nowrap;">edit</a>
-                  <a href="{% url 'task_delete' task.pk %}" style="font-size:0.65rem;color:var(--red);text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid rgba(248,113,113,0.2);white-space:nowrap;">del</a>
-                </div>
+            <button class="check-circle {% if task.status == 'completed' %}done{% endif %}" id="cc-{{ task.id }}" onclick="toggleTask({{ task.id }})" aria-label="Toggle task">
+              <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+            </button>
+            <div class="task-content">
+              <div class="task-name">{{ task.title }}</div>
+              <div class="task-meta">
+                {% if task.start_time %}<span class="task-time">{{ task.start_time|time:"H:i" }}{% if task.end_time %}–{{ task.end_time|time:"H:i" }}{% endif %}</span>{% endif %}
+                <span class="tag tag-{{ task.priority }}">{{ task.priority }}</span>
+                <span class="tag tag-{{ task.status }}">{{ task.get_status_display }}</span>
+                {% if task.category %}<span style="font-size:0.75rem;">{{ task.category.icon }}</span>{% endif %}
               </div>
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                {% if task.start_time %}<span style="font-size:0.68rem;color:var(--text-muted);">⏰ {{ task.start_time|time:"H:i" }}{% if task.end_time %}–{{ task.end_time|time:"H:i" }}{% endif %}</span>{% endif %}
-                <span class="badge badge-{{ task.priority }}">{{ task.priority }}</span>
-                <span class="badge badge-{{ task.status }}">{{ task.get_status_display }}</span>
-                {% if task.category %}<span style="font-size:0.65rem;color:var(--text-muted);">{{ task.category.icon }}</span>{% endif %}
-              </div>
-              {% if task.description %}<p style="font-size:0.73rem;color:var(--text-muted);margin:4px 0 0;line-height:1.4;">{{ task.description|truncatechars:65 }}</p>{% endif %}
+              {% if task.description %}<p class="task-desc">{{ task.description|truncatechars:72 }}</p>{% endif %}
+            </div>
+            <div class="task-actions">
+              <a href="{% url 'task_edit' task.pk %}" class="task-action-btn" title="Edit">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3L11 2z"/></svg>
+              </a>
+              <a href="{% url 'task_delete' task.pk %}" class="task-action-btn del" title="Delete">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 14,4"/><path d="M5 4V2h6v2M6 8v5M10 8v5M3 4l1 10h8l1-10"/></svg>
+              </a>
             </div>
           </div>
         {% endif %}{% endfor %}
 
       {% else %}
-        <div style="text-align:center;padding:2.5rem 1.5rem;border-radius:14px;border:2px dashed var(--border);">
-          <div style="font-size:2.75rem;margin-bottom:0.75rem;">🌅</div>
-          <p style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin:0 0 4px;">Clean slate</p>
-          <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 1.25rem;">No tasks for this day yet</p>
-          <button onclick="openModal('quick-add-modal')" class="btn-primary">＋ Plan your day</button>
+        <div class="empty-state">
+          <div class="empty-icon">◯</div>
+          <div class="empty-title">Nothing scheduled</div>
+          <div class="empty-sub">Start building your day</div>
+          <button onclick="openModal('quick-add-modal')" class="btn btn-primary">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+            Add first task
+          </button>
         </div>
       {% endif %}
     </div>
+
+    <!-- Keyboard hint -->
+    <div style="padding:8px 2px;font-size:0.67rem;color:var(--ink-3);display:flex;gap:8px;align-items:center;">
+      <kbd style="background:var(--surface-4);border:1px solid var(--line-2);border-radius:3px;padding:1px 5px;font-family:'Geist Mono',monospace;font-size:0.62rem;">⌘K</kbd>
+      <span>Quick add</span>
+      <span style="margin:0 4px;">·</span>
+      <kbd style="background:var(--surface-4);border:1px solid var(--line-2);border-radius:3px;padding:1px 5px;font-family:'Geist Mono',monospace;font-size:0.62rem;">N</kbd>
+      <span>Full form</span>
+    </div>
   </div>
+
 </div>
 
-<!-- Quick Add Modal -->
-<div class="modal-overlay" id="quick-add-modal">
-  <div class="modal-box">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;">
-      <div>
-        <h2 style="font-size:1.15rem;font-weight:800;margin:0 0 2px;">⚡ Quick Add</h2>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin:0;">{{ selected_date|date:"F j, Y" }}</p>
-      </div>
-      <button onclick="closeModal('quick-add-modal')" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);width:28px;height:28px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">×</button>
+<!-- ── Quick Add Modal ──────────────────────────────────────────── -->
+<div class="overlay" id="quick-add-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">New task</span>
+      <button class="modal-close" onclick="closeModal('quick-add-modal')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
     </div>
     <form method="POST" action="{% url 'task_quick_add' %}">
       {% csrf_token %}
       <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}" />
-      <div style="display:flex;flex-direction:column;gap:0.9rem;">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+
         <div>
-          <label style="font-size:0.73rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:5px;font-family:'Syne',sans-serif;">Task Title *</label>
-          <input type="text" name="title" class="form-input" placeholder="What needs to be done?" required id="qa-title" />
+          <label class="input-label">Task title</label>
+          <input type="text" name="title" class="input" placeholder="What needs to be done?" required id="qa-title" />
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
-            <label style="font-size:0.73rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:5px;font-family:'Syne',sans-serif;">Start</label>
-            <input type="time" name="start_time" class="form-input" id="qa-start" />
+            <label class="input-label">Start time</label>
+            <input type="time" name="start_time" class="input" id="qa-start" />
           </div>
           <div>
-            <label style="font-size:0.73rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:5px;font-family:'Syne',sans-serif;">End</label>
-            <input type="time" name="end_time" class="form-input" id="qa-end" />
+            <label class="input-label">End time</label>
+            <input type="time" name="end_time" class="input" id="qa-end" />
           </div>
         </div>
+
         <div>
-          <label style="font-size:0.73rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:5px;font-family:'Syne',sans-serif;">Priority</label>
-          <div style="display:flex;gap:6px;">
-            <label style="flex:1;cursor:pointer;"><input type="radio" name="priority" value="low" style="display:none;" class="prio-r"><div class="prio-pill" data-c="var(--green)" data-bg="rgba(74,222,128,0.1)">🟢 Low</div></label>
-            <label style="flex:1;cursor:pointer;"><input type="radio" name="priority" value="medium" checked style="display:none;" class="prio-r"><div class="prio-pill" data-c="var(--amber)" data-bg="rgba(251,191,36,0.1)" style="border-color:var(--amber);background:rgba(251,191,36,0.1);color:var(--amber);">🟡 Medium</div></label>
-            <label style="flex:1;cursor:pointer;"><input type="radio" name="priority" value="high" style="display:none;" class="prio-r"><div class="prio-pill" data-c="var(--red)" data-bg="rgba(248,113,113,0.1)">🔴 High</div></label>
+          <label class="input-label">Priority</label>
+          <div class="prio-selector">
+            <div class="prio-opt" style="--sel-color:var(--c-low);--sel-bg:var(--c-low-dim);">
+              <input type="radio" name="priority" value="low" id="pq-low">
+              <label for="pq-low"><span class="p-dot p-dot-low"></span> Low</label>
+            </div>
+            <div class="prio-opt" style="--sel-color:var(--c-med);--sel-bg:var(--c-med-dim);">
+              <input type="radio" name="priority" value="medium" id="pq-med" checked>
+              <label for="pq-med"><span class="p-dot p-dot-medium"></span> Medium</label>
+            </div>
+            <div class="prio-opt" style="--sel-color:var(--c-high);--sel-bg:var(--c-high-dim);">
+              <input type="radio" name="priority" value="high" id="pq-high">
+              <label for="pq-high"><span class="p-dot p-dot-high"></span> High</label>
+            </div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;padding-top:4px;">
-          <button type="submit" class="btn-primary" style="flex:1;justify-content:center;padding:0.65rem;">Add Task</button>
-          <a href="{% url 'task_create' %}?date={{ selected_date|date:'Y-m-d' }}" class="btn-ghost" style="text-decoration:none;padding:0.65rem 1rem;">Full Form →</a>
-        </div>
+
+        <!-- Duration preview -->
+        <div id="qa-duration" style="display:none;padding:8px 12px;background:var(--surface-3);border-radius:var(--r-sm);font-size:0.75rem;color:var(--ink-1);font-family:'Geist Mono',monospace;"></div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('quick-add-modal')" class="btn btn-ghost">Cancel</button>
+        <a href="{% url 'task_create' %}?date={{ selected_date|date:'Y-m-d' }}" class="btn btn-secondary">Full form</a>
+        <button type="submit" class="btn btn-primary">Add task</button>
       </div>
     </form>
   </div>
@@ -368,93 +685,129 @@ const CSRF = '{{ csrf_token }}';
 let doneCnt = {{ completed }};
 let totalCnt = {{ total }};
 
+/* ── Toggle task ───────────────────────────────────── */
 function toggleTask(id) {
-  const row = document.getElementById('tr-' + id);
-  const cb  = document.getElementById('cb-' + id);
-  const isDone = row.classList.contains('done');
+  const item = document.getElementById('ti-' + id);
+  const circ = document.getElementById('cc-' + id);
+  const isDone = item.classList.contains('is-done');
   const newStatus = isDone ? 'pending' : 'completed';
+
   fetch('/task/' + id + '/toggle/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
     body: JSON.stringify({ status: newStatus })
   }).then(r => r.json()).then(d => {
     if (!d.ok) return;
-    const name = row.querySelector('.task-name');
+    const name = item.querySelector('.task-name');
     if (d.status === 'completed') {
-      row.classList.add('done'); row.dataset.status = 'completed';
-      cb.classList.add('checked'); cb.textContent = '✓';
-      if (name) { name.style.textDecoration = 'line-through'; name.style.color = 'var(--text-muted)'; }
+      item.classList.add('is-done'); item.dataset.status = 'completed';
+      circ.classList.add('done');
+      if (name) { name.style.textDecoration = 'line-through'; name.style.color = 'var(--ink-2)'; }
       doneCnt++;
-      showToast('Task completed! 🎉', 'success');
+      showToast('Task completed', 'success');
     } else {
-      row.classList.remove('done'); row.dataset.status = 'pending';
-      cb.classList.remove('checked'); cb.textContent = '';
+      item.classList.remove('is-done'); item.dataset.status = 'pending';
+      circ.classList.remove('done');
       if (name) { name.style.textDecoration = ''; name.style.color = ''; }
       doneCnt--;
-      showToast('Marked as pending');
+      showToast('Marked as pending', 'info');
     }
-    const pct = totalCnt ? Math.round((doneCnt / totalCnt) * 100) : 0;
-    const bar = document.getElementById('dash-bar');
-    const pEl = document.getElementById('dash-pct');
-    const cEl = document.getElementById('dash-count');
-    if (bar) bar.style.width = pct + '%';
-    if (pEl) pEl.textContent = pct + '%';
-    if (cEl) cEl.textContent = doneCnt + '/' + totalCnt;
+    updateProgress();
+    updateSidebarCounts();
   });
 }
 
-function filterTasks(f, btn) {
-  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active-chip'));
-  btn.classList.add('active-chip');
-  document.querySelectorAll('#task-list .task-row').forEach(row => {
-    if      (f === 'all')       row.style.display = '';
-    else if (f === 'completed') row.style.display = row.classList.contains('done') ? '' : 'none';
-    else if (f === 'pending')   row.style.display = row.dataset.status === 'pending' ? '' : 'none';
-    else if (f === 'high')      row.style.display = row.dataset.priority === 'high' ? '' : 'none';
+function updateProgress() {
+  const pct = totalCnt ? Math.round((doneCnt / totalCnt) * 100) : 0;
+  const fill = document.getElementById('prog-fill');
+  const pctEl = document.getElementById('pct-val');
+  const cntEl = document.getElementById('cnt-val');
+  if (fill) fill.style.width = pct + '%';
+  if (pctEl) pctEl.innerHTML = pct + '<span style="font-size:1.1rem;font-weight:500;color:var(--ink-2);">%</span>';
+  if (cntEl) cntEl.textContent = doneCnt + '/' + totalCnt + ' tasks';
+}
+
+/* ── Sidebar priority counts ───────────────────────── */
+function updateSidebarCounts() {
+  const items = document.querySelectorAll('#task-list .task-item:not(.is-done)');
+  let h = 0, m = 0, l = 0;
+  items.forEach(i => {
+    if (i.dataset.priority === 'high') h++;
+    else if (i.dataset.priority === 'medium') m++;
+    else l++;
+  });
+  const hEl = document.getElementById('sb-high-count');
+  const mEl = document.getElementById('sb-med-count');
+  const lEl = document.getElementById('sb-low-count');
+  if (hEl) hEl.textContent = h || '—';
+  if (mEl) mEl.textContent = m || '—';
+  if (lEl) lEl.textContent = l || '—';
+}
+updateSidebarCounts();
+
+/* ── Filter ────────────────────────────────────────── */
+function applyFilter(f, btn) {
+  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#task-list .task-item').forEach(item => {
+    let show = true;
+    if (f === 'pending')   show = item.dataset.status !== 'completed';
+    else if (f === 'completed') show = item.classList.contains('is-done');
+    else if (f === 'high')      show = item.dataset.priority === 'high';
+    item.style.display = show ? '' : 'none';
   });
 }
 
-// Time needle
-function placeNeedle() {
-  const needle = document.getElementById('time-needle');
+/* ── Timeline needle ───────────────────────────────── */
+function positionNeedle() {
+  const needle = document.getElementById('tl-needle');
   if (!needle) return;
-  const now = new Date(), h = now.getHours(), m = now.getMinutes();
-  const slot = document.getElementById('tl-' + h);
-  if (!slot) return;
-  const ppm = slot.offsetHeight / 60;
-  needle.style.top = (slot.offsetTop + ppm * m) + 'px';
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const row = document.getElementById('tl-h' + h);
+  if (!row) return;
+  const ppm = row.offsetHeight / 60;
+  const top = row.offsetTop + ppm * m;
+  needle.style.top = top + 'px';
   needle.style.display = 'block';
 }
-placeNeedle();
-setInterval(placeNeedle, 30000);
+positionNeedle();
+setInterval(positionNeedle, 30000);
 
 window.addEventListener('load', () => {
   const h = new Date().getHours();
-  const slot = document.getElementById('tl-' + h);
-  const scr  = document.getElementById('tl-scroll');
-  if (slot && scr) setTimeout(() => scr.scrollTop = Math.max(0, slot.offsetTop - 60), 500);
+  const row = document.getElementById('tl-h' + h);
+  const body = document.getElementById('tl-body');
+  if (row && body) setTimeout(() => body.scrollTop = Math.max(0, row.offsetTop - 80), 400);
 });
 
-// Priority pills
-document.querySelectorAll('.prio-r').forEach(r => {
-  r.addEventListener('change', () => {
-    document.querySelectorAll('.prio-pill').forEach(p => {
-      p.style.borderColor = 'var(--border)';
-      p.style.background  = '';
-      p.style.color       = 'var(--text-secondary)';
-    });
-    const pill = r.nextElementSibling;
-    pill.style.borderColor = pill.dataset.c;
-    pill.style.background  = pill.dataset.bg;
-    pill.style.color       = pill.dataset.c;
-  });
-});
-
-function prefillModal(s, e) {
-  document.getElementById('qa-start').value = s;
-  document.getElementById('qa-end').value   = e;
+/* ── Prefill quick-add from free slot ──────────────── */
+function prefillAndOpen(start, end) {
+  document.getElementById('qa-start').value = start;
+  document.getElementById('qa-end').value = end;
   openModal('quick-add-modal');
-  setTimeout(() => document.getElementById('qa-title').focus(), 250);
+  updateDurationPreview();
 }
+
+/* ── Duration preview in modal ─────────────────────── */
+function updateDurationPreview() {
+  const s = document.getElementById('qa-start').value;
+  const e = document.getElementById('qa-end').value;
+  const el = document.getElementById('qa-duration');
+  if (s && e) {
+    const [sh, sm] = s.split(':').map(Number);
+    const [eh, em] = e.split(':').map(Number);
+    const mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins > 0) {
+      const h = Math.floor(mins / 60), m = mins % 60;
+      el.style.display = 'block';
+      el.textContent = '⏱ Duration: ' + (h > 0 ? h + 'h ' : '') + (m > 0 ? m + 'm' : '');
+      return;
+    }
+  }
+  el.style.display = 'none';
+}
+document.getElementById('qa-start').addEventListener('change', updateDurationPreview);
+document.getElementById('qa-end').addEventListener('change', updateDurationPreview);
 </script>
 {% endblock %}

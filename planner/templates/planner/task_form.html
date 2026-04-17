@@ -1,162 +1,266 @@
 {% extends "planner/base.html" %}
 
-{% block title %}{% if form.instance.pk %}Edit Task{% else %}New Task{% endif %} — DayFlow{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit task{% else %}New task{% endif %} — DayFlow{% endblock %}
+{% block breadcrumb %}{% if form.instance.pk %}Edit task{% else %}New task{% endif %}{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'dashboard' %}" class="btn btn-ghost">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M10 12L6 8l4-4"/></svg>
+    Back
+  </a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-layout {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .form-page-header {
+    margin-bottom: 28px;
+  }
+  .form-page-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2rem;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--ink-0);
+    margin-bottom: 6px;
+  }
+  .form-page-sub {
+    font-size: 0.82rem;
+    color: var(--ink-2);
+  }
+  .form-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-xl);
+    overflow: hidden;
+  }
+  .form-section {
+    padding: 22px 26px;
+    border-bottom: 1px solid var(--line-1);
+  }
+  .form-section:last-child { border-bottom: none; }
+  .form-section-title {
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 16px;
+  }
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .form-footer {
+    padding: 18px 26px;
+    display: flex; gap: 10px; align-items: center;
+    background: var(--surface-1);
+    border-top: 1px solid var(--line-1);
+  }
+
+  /* Priority buttons */
+  .prio-choice { display: flex; gap: 8px; }
+  .prio-choice-item { flex: 1; }
+  .prio-choice-item input[type=radio] { display: none; }
+  .prio-choice-item label {
+    display: flex; align-items: center; justify-content: center;
+    gap: 7px; padding: 10px;
+    border-radius: var(--r-sm); border: 1px solid var(--line-2);
+    font-size: 0.8rem; font-weight: 500; cursor: pointer;
+    color: var(--ink-1);
+    transition: all 0.12s;
+  }
+  .prio-choice-item label:hover { background: var(--surface-4); }
+  .prio-choice-item.v-low  input:checked + label { border-color: var(--c-low);  background: var(--c-low-dim);  color: var(--c-low); }
+  .prio-choice-item.v-med  input:checked + label { border-color: var(--c-med);  background: var(--c-med-dim);  color: var(--c-med); }
+  .prio-choice-item.v-high input:checked + label { border-color: var(--c-high); background: var(--c-high-dim); color: var(--c-high); }
+
+  /* Duration live chip */
+  .duration-chip {
+    display: none;
+    align-items: center; gap: 6px;
+    padding: 5px 10px;
+    background: var(--accent-dim);
+    border-radius: 99px;
+    font-size: 0.72rem;
+    color: var(--accent-text);
+    font-family: 'Geist Mono', monospace;
+    margin-top: 8px;
+  }
+  .duration-chip.visible { display: flex; }
+
+  /* Error styling */
+  .input.has-error { border-color: var(--c-high); }
+  .input.has-error:focus { box-shadow: 0 0 0 3px var(--c-high-dim); }
+
+  @media (max-width: 600px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .form-section { padding: 18px; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div style="max-width:600px;margin:0 auto;">
+<div class="form-layout">
 
-  <!-- Back nav -->
-  <a href="{% url 'dashboard' %}" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);text-decoration:none;font-size:0.85rem;margin-bottom:1.5rem;transition:color 0.15s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">
-    ← Back to Dashboard
-  </a>
+  <div class="form-page-header">
+    <h1 class="form-page-title">
+      {% if form.instance.pk %}Edit task{% else %}New task{% endif %}
+    </h1>
+    <p class="form-page-sub">
+      {% if form.instance.pk %}Update the details for "{{ form.instance.title }}"{% else %}Add a task to your planner{% endif %}
+    </p>
+  </div>
 
-  <div class="card" style="padding:2rem;">
-    <!-- Header -->
-    <div style="margin-bottom:2rem;">
-      <h1 style="font-size:1.5rem;font-weight:800;margin:0 0 6px;">
-        {% if form.instance.pk %}✏ Edit Task{% else %}＋ New Task{% endif %}
-      </h1>
-      <p style="font-size:0.875rem;color:var(--text-muted);margin:0;">
-        {% if form.instance.pk %}Update your task details below.{% else %}Plan your next task with details.{% endif %}
-      </p>
-    </div>
+  {% if form.non_field_errors %}
+  <div style="padding:12px 16px;background:var(--c-high-dim);border:1px solid rgba(229,83,61,0.2);border-radius:var(--r-md);font-size:0.82rem;color:var(--c-high);margin-bottom:16px;display:flex;gap:8px;align-items:flex-start;">
+    <span>✕</span><span>{{ form.non_field_errors.0 }}</span>
+  </div>
+  {% endif %}
 
+  <div class="form-card">
     <form method="POST" novalidate>
       {% csrf_token %}
 
-      <!-- Non-field errors -->
-      {% if form.non_field_errors %}
-      <div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.25rem;font-size:0.875rem;color:var(--red);">
-        {{ form.non_field_errors }}
+      <!-- Core -->
+      <div class="form-section">
+        <div class="form-section-title">Core details</div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label class="input-label">Title <span style="color:var(--c-high);">*</span></label>
+            <input type="text" name="title" value="{{ form.title.value|default:'' }}"
+                   class="input {% if form.title.errors %}has-error{% endif %}"
+                   placeholder="What needs to be done?" />
+            {% if form.title.errors %}<span class="input-error">{{ form.title.errors.0 }}</span>{% endif %}
+          </div>
+          <div>
+            <label class="input-label">Description</label>
+            <textarea name="description" class="input" placeholder="Add context, links, or notes…">{{ form.description.value|default:'' }}</textarea>
+          </div>
+        </div>
       </div>
-      {% endif %}
 
-      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <!-- Scheduling -->
+      <div class="form-section">
+        <div class="form-section-title">Scheduling</div>
+        <div class="form-grid-2">
+          <div>
+            <label class="input-label">Date <span style="color:var(--c-high);">*</span></label>
+            <input type="date" name="date" value="{{ form.date.value|default:'' }}"
+                   class="input {% if form.date.errors %}has-error{% endif %}" />
+            {% if form.date.errors %}<span class="input-error">{{ form.date.errors.0 }}</span>{% endif %}
+          </div>
+          <div></div>
+          <div>
+            <label class="input-label">Start time</label>
+            <input type="time" name="start_time" id="ft-start"
+                   value="{{ form.start_time.value|default:'' }}" class="input" />
+          </div>
+          <div>
+            <label class="input-label">End time</label>
+            <input type="time" name="end_time" id="ft-end"
+                   value="{{ form.end_time.value|default:'' }}"
+                   class="input {% if form.end_time.errors %}has-error{% endif %}" />
+            {% if form.end_time.errors %}<span class="input-error">{{ form.end_time.errors.0 }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="duration-chip" id="ft-duration">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2" stroke-linecap="round"/></svg>
+          <span id="ft-duration-text"></span>
+        </div>
+      </div>
 
-        <!-- Title -->
-        <div>
-          <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-            Task Title *
-          </label>
-          {{ form.title }}
-          {% if form.title.errors %}
-          <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.title.errors.0 }}</p>
+      <!-- Classification -->
+      <div class="form-section">
+        <div class="form-section-title">Classification</div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label class="input-label">Priority</label>
+            <div class="prio-choice">
+              <div class="prio-choice-item v-low">
+                <input type="radio" name="priority" value="low" id="fp-low" {% if form.priority.value == 'low' %}checked{% endif %}>
+                <label for="fp-low"><span style="width:7px;height:7px;border-radius:50%;background:var(--c-low);display:inline-block;"></span> Low</label>
+              </div>
+              <div class="prio-choice-item v-med">
+                <input type="radio" name="priority" value="medium" id="fp-med" {% if form.priority.value == 'medium' or not form.priority.value %}checked{% endif %}>
+                <label for="fp-med"><span style="width:7px;height:7px;border-radius:50%;background:var(--c-med);display:inline-block;"></span> Medium</label>
+              </div>
+              <div class="prio-choice-item v-high">
+                <input type="radio" name="priority" value="high" id="fp-high" {% if form.priority.value == 'high' %}checked{% endif %}>
+                <label for="fp-high"><span style="width:7px;height:7px;border-radius:50%;background:var(--c-high);display:inline-block;"></span> High</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div>
+              <label class="input-label">Category</label>
+              <select name="category" class="input">
+                <option value="">No category</option>
+                {% for cat in form.category.field.queryset %}
+                <option value="{{ cat.pk }}" {% if form.category.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="input-label">Status</label>
+              <select name="status" class="input">
+                {% for val, label in form.status.field.choices %}
+                <option value="{{ val }}" {% if form.status.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary">
+          {% if form.instance.pk %}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="1.5,8 5.5,12 14.5,3"/></svg>
+          Save changes
+          {% else %}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:14px;height:14px;"><path d="M8 3v10M3 8h10"/></svg>
+          Add task
           {% endif %}
-        </div>
-
-        <!-- Description -->
-        <div>
-          <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-            Description
-          </label>
-          {{ form.description }}
-        </div>
-
-        <!-- Date + Priority row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              Date *
-            </label>
-            {{ form.date }}
-            {% if form.date.errors %}
-            <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.date.errors.0 }}</p>
-            {% endif %}
-          </div>
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              Priority
-            </label>
-            {{ form.priority }}
-          </div>
-        </div>
-
-        <!-- Time row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              Start Time
-            </label>
-            {{ form.start_time }}
-          </div>
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              End Time
-            </label>
-            {{ form.end_time }}
-            {% if form.end_time.errors %}
-            <p style="font-size:0.75rem;color:var(--red);margin-top:4px;">{{ form.end_time.errors.0 }}</p>
-            {% endif %}
-          </div>
-        </div>
-
-        <!-- Category + Status row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              Category
-            </label>
-            {{ form.category }}
-          </div>
-          <div>
-            <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600;display:block;margin-bottom:6px;font-family:'Syne',sans-serif;">
-              Status
-            </label>
-            {{ form.status }}
-          </div>
-        </div>
-
-        <!-- Duration preview -->
-        <div id="duration-preview" style="background:var(--bg-hover);border-radius:10px;padding:0.75rem 1rem;font-size:0.85rem;color:var(--text-secondary);display:none;">
-          ⏱ Duration: <span id="duration-text" style="font-weight:600;color:var(--text-primary);"></span>
-        </div>
-
-        <!-- Submit -->
-        <div style="display:flex;gap:10px;padding-top:0.5rem;">
-          <button type="submit" class="btn-primary" style="flex:1;justify-content:center;padding:0.75rem;">
-            {% if form.instance.pk %}Save Changes{% else %}Add Task 🎯{% endif %}
-          </button>
-          <a href="{% url 'dashboard' %}" class="btn-ghost" style="text-decoration:none;">Cancel</a>
-        </div>
-
+        </button>
+        <a href="{% url 'dashboard' %}" class="btn btn-ghost">Cancel</a>
+        {% if form.instance.pk %}
+        <a href="{% url 'task_delete' form.instance.pk %}" class="btn" style="margin-left:auto;background:var(--c-high-dim);color:var(--c-high);border:1px solid rgba(229,83,61,0.2);">Delete task</a>
+        {% endif %}
       </div>
+
     </form>
   </div>
+
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  // Live duration preview
-  const startInput = document.querySelector('input[name="start_time"]');
-  const endInput = document.querySelector('input[name="end_time"]');
-
-  function updateDuration() {
-    const start = startInput.value;
-    const end = endInput.value;
-    const preview = document.getElementById('duration-preview');
-    const text = document.getElementById('duration-text');
-    if (start && end) {
-      const [sh, sm] = start.split(':').map(Number);
-      const [eh, em] = end.split(':').map(Number);
-      const totalMins = (eh * 60 + em) - (sh * 60 + sm);
-      if (totalMins > 0) {
-        const h = Math.floor(totalMins / 60);
-        const m = totalMins % 60;
-        text.textContent = h > 0 ? `${h}h ${m}m` : `${m} minutes`;
-        preview.style.display = 'block';
-      } else {
-        preview.style.display = 'none';
+  function calcDuration() {
+    const s = document.getElementById('ft-start').value;
+    const e = document.getElementById('ft-end').value;
+    const chip = document.getElementById('ft-duration');
+    const text = document.getElementById('ft-duration-text');
+    if (s && e) {
+      const [sh, sm] = s.split(':').map(Number);
+      const [eh, em] = e.split(':').map(Number);
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins > 0) {
+        const h = Math.floor(mins / 60), m = mins % 60;
+        text.textContent = (h > 0 ? h + 'h ' : '') + (m > 0 ? m + 'm' : '');
+        chip.classList.add('visible'); return;
       }
-    } else {
-      preview.style.display = 'none';
     }
+    chip.classList.remove('visible');
   }
-
-  if (startInput && endInput) {
-    startInput.addEventListener('change', updateDuration);
-    endInput.addEventListener('change', updateDuration);
-    updateDuration();
-  }
+  document.getElementById('ft-start').addEventListener('change', calcDuration);
+  document.getElementById('ft-end').addEventListener('change', calcDuration);
+  calcDuration();
 </script>
 {% endblock %}
